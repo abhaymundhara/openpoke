@@ -7,26 +7,11 @@ import httpx
 
 from ..config import get_settings
 
-OpenRouterBaseURL = "https://openrouter.ai/api/v1"
+OLLAMA_CHAT_PATH = "/api/chat"
 
 
-class OpenRouterError(RuntimeError):
-    """Raised when the OpenRouter API returns an error response."""
-
-
-def _headers(*, api_key: Optional[str] = None) -> Dict[str, str]:
-    settings = get_settings()
-    key = (api_key or settings.openrouter_api_key or "").strip()
-    if not key:
-        raise OpenRouterError("Missing OpenRouter API key")
-
-    headers = {
-        "Authorization": f"Bearer {key}",
-        "Content-Type": "application/json",
-        "Accept": "application/json",
-    }
-
-    return headers
+class OllamaError(RuntimeError):
+    """Raised when the Ollama API returns an error response."""
 
 
 def _build_messages(messages: List[Dict[str, str]], system: Optional[str]) -> List[Dict[str, str]]:
@@ -35,15 +20,38 @@ def _build_messages(messages: List[Dict[str, str]], system: Optional[str]) -> Li
     return messages
 
 
-def _handle_response_error(exc: httpx.HTTPStatusError) -> None:
-    response = exc.response
-    detail: str
-    try:
-        payload = response.json()
-        detail = payload.get("error") or payload.get("message") or json.dumps(payload)
-    except Exception:
-        detail = response.text
-    raise OpenRouterError(f"OpenRouter request failed ({response.status_code}): {detail}") from exc
+def _extract_message(payload: Dict[str, Any]) -> Dict[str, Any]:
+    message = payload.get("message")
+    if isinstance(message, dict):
+        return message
+
+    messages = payload.get("messages")
+    if isinstance(messages, list) and messages:
+        last = messages[-1]
+        if isinstance(last, dict):
+            return last
+
+    raise OllamaError("Ollama response missing message content")
+
+
+def _normalize_response(payload: Dict[str, Any]) -> Dict[str, Any]:
+    message = _extract_message(payload)
+
+    normalized_message: Dict[str, Any] = {
+        "role": message.get("role", "assistant"),
+        "content": message.get("content", ""),
+    }
+
+    tool_calls = message.get("tool_calls")
+    if isinstance(tool_calls, list) and tool_calls:
+        normalized_message["tool_calls"] = tool_calls
+
+    return {
+        "choices": [{"message": normalized_message}],
+        "model": payload.get("model"),
+        "created_at": payload.get("created_at"),
+        "raw_response": payload,
+    }
 
 
 async def request_chat_completion(
@@ -53,39 +61,49 @@ async def request_chat_completion(
     system: Optional[str] = None,
     api_key: Optional[str] = None,
     tools: Optional[List[Dict[str, Any]]] = None,
-    base_url: str = OpenRouterBaseURL,
+    base_url: Optional[str] = None,
 ) -> Dict[str, Any]:
-    """Request a chat completion and return the raw JSON payload."""
+    """Request a chat completion from a local Ollama instance."""
 
-    payload: Dict[str, object] = {
+    settings = get_settings()
+    host = (base_url or settings.ollama_host or "").strip()
+    if not host:
+        raise OllamaError("Ollama host not configured. Set OLLAMA_HOST environment variable.")
+
+    payload: Dict[str, Any] = {
         "model": model,
         "messages": _build_messages(messages, system),
         "stream": False,
     }
+
     if tools:
         payload["tools"] = tools
 
-    url = f"{base_url.rstrip('/')}/chat/completions"
+    url = f"{host.rstrip('/')}{OLLAMA_CHAT_PATH}"
 
     async with httpx.AsyncClient() as client:
         try:
-            response = await client.post(
-                url,
-                headers=_headers(api_key=api_key),
-                json=payload,
-                timeout=60.0,  # Set reasonable timeout instead of None
-            )
+            response = await client.post(url, json=payload, timeout=60.0)
+            response.raise_for_status()
+        except httpx.HTTPStatusError as exc:
+            detail = exc.response.text
             try:
-                response.raise_for_status()
-            except httpx.HTTPStatusError as exc:
-                _handle_response_error(exc)
-            return response.json()
-        except httpx.HTTPStatusError as exc:  # pragma: no cover - handled above
-            _handle_response_error(exc)
+                detail_json = exc.response.json()
+                detail = json.dumps(detail_json)
+            except Exception:
+                pass
+            raise OllamaError(
+                f"Ollama request failed ({exc.response.status_code}): {detail}"
+            ) from exc
         except httpx.HTTPError as exc:
-            raise OpenRouterError(f"OpenRouter request failed: {exc}") from exc
+            raise OllamaError(f"Ollama request failed: {exc}") from exc
 
-    raise OpenRouterError("OpenRouter request failed: unknown error")
+    try:
+        data = response.json()
+    except json.JSONDecodeError as exc:
+        raise OllamaError("Ollama response was not valid JSON") from exc
+
+    return _normalize_response(data)
 
 
-__all__ = ["OpenRouterError", "request_chat_completion", "OpenRouterBaseURL"]
+__all__ = ["OllamaError", "request_chat_completion", "OLLAMA_CHAT_PATH"]

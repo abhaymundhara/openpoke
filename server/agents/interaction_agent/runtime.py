@@ -47,19 +47,21 @@ class InteractionAgentRuntime:
     MAX_TOOL_ITERATIONS = 8
 
     # Initialize interaction agent runtime with settings and service dependencies
-    def __init__(self) -> None:
+    def __init__(
+        self,
+        *,
+        conversation_log: Optional[Any] = None,
+        working_memory_log: Optional[Any] = None,
+    ) -> None:
         settings = get_settings()
-        self.api_key = settings.openrouter_api_key
         self.model = settings.interaction_agent_model
         self.settings = settings
-        self.conversation_log = get_conversation_log()
-        self.working_memory_log = get_working_memory_log()
+        self.conversation_log = conversation_log or get_conversation_log()
+        self.working_memory_log = working_memory_log or get_working_memory_log()
         self.tool_schemas = get_tool_schemas()
 
-        if not self.api_key:
-            raise ValueError(
-                "OpenRouter API key not configured. Set OPENROUTER_API_KEY environment variable."
-            )
+        if not self.model:
+            raise ValueError("Interaction agent model not configured.")
 
     # Main entry point for processing user messages through the LLM interaction loop
     async def execute(self, user_message: str) -> InteractionResult:
@@ -198,13 +200,13 @@ class InteractionAgentRuntime:
                 return rendered
         return self.conversation_log.load_transcript()
 
-    # Execute API call to OpenRouter with system prompt, messages, and tool schemas
+    # Execute API call to Ollama with system prompt, messages, and tool schemas
     async def _make_llm_call(
         self,
         system_prompt: str,
         messages: List[Dict[str, Any]],
     ) -> Dict[str, Any]:
-        """Make an LLM call via OpenRouter."""
+        """Make an LLM call via Ollama."""
 
         logger.debug(
             "Interaction agent calling LLM",
@@ -214,11 +216,10 @@ class InteractionAgentRuntime:
             model=self.model,
             messages=messages,
             system=system_prompt,
-            api_key=self.api_key,
             tools=self.tool_schemas,
         )
 
-    # Extract the assistant's message from the OpenRouter API response structure
+    # Extract the assistant's message from the LLM API response structure
     def _extract_assistant_message(self, response: Dict[str, Any]) -> Dict[str, Any]:
         """Return the assistant message from the raw response payload."""
 

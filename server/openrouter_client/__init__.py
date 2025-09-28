@@ -1,3 +1,3 @@
-from .client import OpenRouterError, request_chat_completion
+from .client import OllamaError, request_chat_completion
 
-__all__ = ["OpenRouterError", "request_chat_completion"]
+__all__ = ["OllamaError", "request_chat_completion"]

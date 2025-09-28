@@ -1,0 +1,5 @@
+# Local state written by the iMessage proxy
+imessage_state.json
+
+# macOS clutter
+.DS_Store

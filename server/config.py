@@ -51,14 +51,14 @@ class Settings(BaseModel):
     server_port: int = Field(default=_env_int("OPENPOKE_PORT", 8001))
 
     # LLM model selection
-    interaction_agent_model: str = Field(default="anthropic/claude-sonnet-4")
-    execution_agent_model: str = Field(default="anthropic/claude-sonnet-4")
-    execution_agent_search_model: str = Field(default="anthropic/claude-sonnet-4")
-    summarizer_model: str = Field(default="anthropic/claude-sonnet-4")
-    email_classifier_model: str = Field(default="anthropic/claude-sonnet-4")
+    interaction_agent_model: str = Field(default=os.getenv("OPENPOKE_INTERACTION_MODEL", "gemma2:2b"))
+    execution_agent_model: str = Field(default=os.getenv("OPENPOKE_EXECUTION_MODEL", "gemma2:2b"))
+    execution_agent_search_model: str = Field(default=os.getenv("OPENPOKE_EXECUTION_SEARCH_MODEL", "gemma2:2b"))
+    summarizer_model: str = Field(default=os.getenv("OPENPOKE_SUMMARIZER_MODEL", "gemma2:2b"))
+    email_classifier_model: str = Field(default=os.getenv("OPENPOKE_EMAIL_CLASSIFIER_MODEL", "gemma2:2b"))
 
-    # Credentials / integrations
-    openrouter_api_key: Optional[str] = Field(default=os.getenv("OPENROUTER_API_KEY"))
+    # LLM host configuration
+    ollama_host: str = Field(default=os.getenv("OLLAMA_HOST", "http://localhost:11434"))
     composio_gmail_auth_config_id: Optional[str] = Field(default=os.getenv("COMPOSIO_GMAIL_AUTH_CONFIG_ID"))
     composio_api_key: Optional[str] = Field(default=os.getenv("COMPOSIO_API_KEY"))
 

@@ -31,7 +31,7 @@ from .system_prompt import get_system_prompt
 # Constants
 MAX_LLM_ITERATIONS = 8
 ERROR_GMAIL_NOT_CONNECTED = "Gmail not connected. Please connect Gmail in settings first."
-ERROR_OPENROUTER_NOT_CONFIGURED = "OpenRouter API key not configured. Set OPENROUTER_API_KEY."
+ERROR_LLM_NOT_CONFIGURED = "LLM model not configured. Set OPENPOKE_EXECUTION_SEARCH_MODEL."
 ERROR_EMPTY_QUERY = "search_query must not be empty"
 ERROR_QUERY_REQUIRED = "query parameter is required"
 ERROR_MESSAGE_IDS_REQUIRED = "message_ids parameter is required"
@@ -71,13 +71,13 @@ def _validate_gmail_connection() -> Optional[str]:
     return get_active_gmail_user_id()
 
 
-def _validate_openrouter_config() -> Tuple[Optional[str], Optional[str]]:
-    """Validate OpenRouter configuration and return (api_key, model) or (None, error)."""
+def _validate_llm_configuration() -> Tuple[Optional[str], Optional[str]]:
+    """Validate LLM configuration and return (model, error)."""
     settings = get_settings()
-    api_key = settings.openrouter_api_key
-    if not api_key:
-        return None, ERROR_OPENROUTER_NOT_CONFIGURED
-    return api_key, settings.execution_agent_search_model
+    model = settings.execution_agent_search_model
+    if not model:
+        return None, ERROR_LLM_NOT_CONFIGURED
+    return model, None
 
 
 # Return task tool callables
@@ -105,17 +105,16 @@ async def task_email_search(search_query: str) -> Any:
         logger.error(f"[EMAIL_SEARCH] Gmail not connected")
         return {"error": ERROR_GMAIL_NOT_CONNECTED}
     
-    api_key, model_or_error = _validate_openrouter_config()
-    if not api_key:
-        logger.error(f"[EMAIL_SEARCH] OpenRouter not configured: {model_or_error}")
-        return {"error": model_or_error}
+    model, error = _validate_llm_configuration()
+    if error:
+        logger.error(f"[EMAIL_SEARCH] LLM not configured: {error}")
+        return {"error": error}
     
     try:
         result = await _run_email_search(
             search_query=cleaned_query,
             composio_user_id=composio_user_id,
-            model=model_or_error,
-            api_key=api_key,
+            model=model,
         )
         logger.info(f"[EMAIL_SEARCH] Found {len(result) if isinstance(result, list) else 0} emails")
         return result
@@ -130,7 +129,6 @@ async def _run_email_search(
     search_query: str,
     composio_user_id: str,
     model: str,
-    api_key: str,
 ) -> List[Dict[str, Any]]:
     """Execute the main email search orchestration loop."""
     messages: List[Dict[str, Any]] = [
@@ -151,7 +149,6 @@ async def _run_email_search(
             model=model,
             messages=messages,
             system=get_system_prompt(),
-            api_key=api_key,
             tools=[GMAIL_FETCH_EMAILS_SCHEMA, _COMPLETION_TOOL_SCHEMA],
         )
         
@@ -379,7 +376,7 @@ def _build_response(
 
 
 def _extract_assistant_message(response: Dict[str, Any]) -> Dict[str, Any]:
-    """Extract assistant message from OpenRouter API response."""
+    """Extract assistant message from the LLM API response."""
     return response.get("choices", [{}])[0].get("message", {})
 
 

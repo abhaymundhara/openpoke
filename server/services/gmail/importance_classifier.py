@@ -8,7 +8,7 @@ from typing import Any, Dict, Optional
 from .processing import ProcessedEmail
 from ...config import get_settings
 from ...logging_config import logger
-from ...openrouter_client import OpenRouterError, request_chat_completion
+from ...openrouter_client import OllamaError, request_chat_completion
 
 
 _TOOL_NAME = "mark_email_importance"
@@ -81,11 +81,10 @@ async def classify_email_importance(email: ProcessedEmail) -> Optional[str]:
     """Return summary text when email should be surfaced; otherwise None."""
 
     settings = get_settings()
-    api_key = settings.openrouter_api_key
     model = settings.email_classifier_model
 
-    if not api_key:
-        logger.warning("Skipping importance check; OpenRouter API key missing")
+    if not model:
+        logger.warning("Skipping importance check; email classifier model not configured")
         return None
 
     user_payload = _format_email_payload(email)
@@ -96,10 +95,9 @@ async def classify_email_importance(email: ProcessedEmail) -> Optional[str]:
             model=model,
             messages=messages,
             system=_SYSTEM_PROMPT,
-            api_key=api_key,
             tools=[_TOOL_SCHEMA],
         )
-    except OpenRouterError as exc:
+    except OllamaError as exc:
         logger.error(
             "Importance classification failed",
             extra={"message_id": email.id, "error": str(exc)},

@@ -20,7 +20,7 @@ class ToolResult:
     user_message: Optional[str] = None
     recorded_reply: bool = False
 
-# Tool schemas for OpenRouter
+# Tool schemas for the chat completion API
 TOOL_SCHEMAS = [
     {
         "type": "function",

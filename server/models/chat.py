@@ -19,7 +19,7 @@ class ChatMessage(BaseModel):
             data["content"] = "" if data["content"] is None else str(data["content"])
         return data
 
-    def as_openrouter(self) -> Dict[str, str]:
+    def as_completion_message(self) -> Dict[str, str]:
         return {"role": self.role.strip(), "content": self.content}
 
 
@@ -31,8 +31,8 @@ class ChatRequest(BaseModel):
     system: Optional[str] = None
     stream: bool = True
 
-    def openrouter_messages(self) -> List[Dict[str, str]]:
-        return [msg.as_openrouter() for msg in self.messages if msg.content.strip()]
+    def chat_completion_messages(self) -> List[Dict[str, str]]:
+        return [msg.as_completion_message() for msg in self.messages if msg.content.strip()]
 
 
 class ChatHistoryResponse(BaseModel):
