@@ -7,6 +7,10 @@ OpenPoke is a simplified, open-source take on [Interaction Company’s](https://
 - Trigger scheduler and background watchers for reminders and "important email" alerts.
 - Next.js web UI that proxies everything through the shared `.env`, so plugging in API keys is the only setup.
 
+## About this fork
+
+This project extends [shlokkhemani/OpenPoke](https://github.com/shlokkhemani/OpenPoke) with a locally hosted stack: all agents now call Ollama’s `gemma2:2b` model by default and a macOS iMessage bridge lets conversations flow through native Messages threads. The upstream FastAPI/Next.js foundation remains intact, so the new features slot into the existing architecture without changing the original workflows.
+
 ## Requirements
 - Python 3.10+
 - Node.js 18+
